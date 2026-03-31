@@ -12,8 +12,10 @@
 2. [核心技术栈](#2-核心技术栈)
 3. [用户交互完整流程](#3-用户交互完整流程)
 4. [Agent 工程化](#4-agent-工程化)
-5. [扩展机制](#5-扩展机制)
-6. [其他工程经验](#6-其他工程经验)
+5. [扩展机制详解](#5-扩展机制详解)
+6. [多 Agent 架构](#6-多-agent-架构)
+7. [核心模块深度分析](#7-核心模块深度分析)
+8. [其他工程经验](#8-其他工程经验)
 
 ---
 
@@ -23,38 +25,38 @@
 
 ```mermaid
 flowchart TB
-    subgraph 用户层["👤 用户层"]
-        CLI["命令行界面 Terminal"]
+    subgraph 用户层["User Layer"]
+        CLI["Terminal CLI"]
     end
 
-    subgraph 入口层["⚡ 入口层"]
-        CLI_ENTRY["cli.tsx<br/>快速路径分发"]
-        MAIN["main.tsx<br/>全量初始化"]
-        SETUP["setup.ts<br/>会话初始化"]
+    subgraph 入口层["Entrypoint"]
+        CLI_ENTRY["cli.tsx<br/>Fast Path Dispatch"]
+        MAIN["main.tsx<br/>Full Init"]
+        SETUP["setup.ts<br/>Session Init"]
     end
 
-    subgraph 核心引擎层["⚙️ 核心引擎层"]
-        QE["QueryEngine<br/>执行循环"]
-        QUERY["query.ts<br/>消息处理"]
-        CONTEXT["context.ts<br/>上下文构建"]
+    subgraph 核心引擎层["Core Engine"]
+        QE["QueryEngine<br/>Execution Loop"]
+        QUERY["query.ts<br/>Message Processing"]
+        CONTEXT["context.ts<br/>Context Building"]
     end
 
-    subgraph 状态与工具["📦 状态 & 工具 & 命令"]
+    subgraph 状态与工具["State & Tools & Commands"]
         STATE["state/store.ts<br/>AppStateStore"]
-        TOOLS["tools.ts<br/>30+ 工具"]
-        CMDS["commands.ts<br/>80+ 命令"]
+        TOOLS["tools.ts<br/>30+ Tools"]
+        CMDS["commands.ts<br/>80+ Commands"]
     end
 
-    subgraph 服务层["🔧 服务层"]
+    subgraph 服务层["Services"]
         API["services/api<br/>Claude API"]
-        COMPACT["services/compact<br/>上下文压缩"]
-        MCP["services/mcp<br/>MCP 服务器"]
+        COMPACT["services/compact<br/>Context Compression"]
+        MCP["services/mcp<br/>MCP Server"]
     end
 
-    subgraph UI层["🎨 UI 渲染层"]
-        INK["Ink<br/>React 终端"]
-        APP["App.tsx<br/>根组件"]
-        REPL["REPL.tsx<br/>主交互"]
+    subgraph UI层["UI Rendering"]
+        INK["Ink<br/>React Terminal"]
+        APP["App.tsx<br/>Root Component"]
+        REPL["REPL.tsx<br/>Main Interface"]
     end
 
     CLI --> CLI_ENTRY
@@ -78,20 +80,20 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    subgraph 入口["入口"]
+    subgraph Entrypoint["Entrypoint"]
         A["cli.tsx"]
     end
 
-    subgraph 初始化["初始化"]
+    subgraph Init["Initialization"]
         B["main.tsx"]
         C["setup.ts"]
     end
 
-    subgraph 核心["核心引擎"]
+    subgraph Core["Core Engine"]
         D["QueryEngine.ts"]
     end
 
-    subgraph 模块["功能模块"]
+    subgraph Modules["Functional Modules"]
         E["query.ts"]
         F["context.ts"]
         G["tools.ts"]
@@ -99,13 +101,13 @@ flowchart LR
         I["commands.ts"]
     end
 
-    subgraph 服务["服务层"]
+    subgraph Services["Services"]
         J["services/api"]
         K["services/compact"]
         L["services/mcp"]
     end
 
-    subgraph 状态["状态管理"]
+    subgraph State["State Management"]
         M["store.ts"]
         N["AppStateStore"]
     end
@@ -127,54 +129,53 @@ flowchart LR
 
 ```
 src/
-├── entrypoints/              # 程序入口点
-│   ├── cli.tsx              # CLI 快速路径分发
-│   ├── main.tsx             # 主程序全量初始化
-│   └── init.ts             # 初始化函数
+├── entrypoints/              # Program entrypoints
+│   ├── cli.tsx             # CLI fast path dispatch
+│   ├── main.tsx            # Main program full init
+│   └── init.ts             # Init functions
 │
-├── bootstrap/               # 启动状态
-│   └── state.ts            # 全局单例状态
+├── bootstrap/              # Bootstrap state
+│   └── state.ts           # Global singleton state
 │
-├── coordinator/             # 协调模式
-│   └── coordinatorMode.ts  # 多 Agent 协调
+├── coordinator/           # Coordinator mode
+│   └── coordinatorMode.ts  # Multi-Agent coordination
 │
-├── query/                   # 查询引擎子模块
-│   ├── deps.ts             # 依赖注入
-│   ├── config.ts           # 配置构建
-│   └── transitions.ts       # 状态转换
+├── query/                  # Query engine submodules
+│   ├── deps.ts            # Dependency injection
+│   └── transitions.ts      # State transitions
 │
-├── commands/                # 命令系统 (80+)
-│   └── commands.ts         # 命令注册表
+├── commands/              # Command system (80+)
+│   └── commands.ts        # Command registry
 │
-├── tools/                  # 工具系统 (30+)
-│   ├── tools.ts            # 工具注册表
-│   ├── Tool.ts            # 工具基类
-│   ├── BashTool/          # Bash 工具
-│   ├── AgentTool/         # Agent 派发工具
+├── tools/                 # Tool system (40+)
+│   ├── tools.ts          # Tool registry
+│   ├── Tool.ts          # Tool base class
+│   ├── BashTool/        # Bash tool
+│   ├── AgentTool/       # Agent dispatch tool
 │   └── ...
 │
-├── state/                  # 状态管理
-│   ├── store.ts           # 极简响应式 Store (~30行)
-│   └── AppStateStore.ts    # React 状态类型
+├── state/                # State management
+│   ├── store.ts        # Simple reactive Store (~30 lines)
+│   └── AppStateStore.ts  # React state types
 │
-├── context/                # React Context
-│   ├── mailbox.tsx        # 进程间消息
-│   └── notifications.tsx  # 通知队列
+├── context/              # React Context
+│   ├── mailbox.tsx     # Inter-process messaging
+│   └── notifications.tsx # Notification queue
 │
-├── components/             # UI 组件 (80+)
-│   ├── App.tsx           # React 根组件
+├── components/           # UI components (80+)
+│   ├── App.tsx        # React root component
 │   └── ...
 │
-├── screens/                # 顶层屏幕
-│   └── REPL.tsx          # 主交互界面 (4926 行)
+├── screens/              # Top-level screens
+│   └── REPL.tsx      # Main interface (4926 lines)
 │
-├── services/              # 后台服务
-│   ├── api/              # Claude API 调用
-│   ├── compact/          # 上下文压缩
-│   └── mcp/              # MCP 服务器管理
+├── services/            # Backend services
+│   ├── api/           # Claude API calls
+│   ├── compact/       # Context compression
+│   └── mcp/         # MCP server management
 │
-└── hooks/                # React Hooks
-    └── useCanUseTool.tsx # 权限判断核心
+└── hooks/            # React Hooks
+    └── useCanUseTool.tsx # Permission hook
 ```
 
 ---
@@ -183,49 +184,33 @@ src/
 
 ### 2.1 技术选型
 
-| 类别 | 技术 | 用途 |
-|------|------|------|
-| **运行时** | Bun | 启动速度比 Node 快 |
-| **UI** | Ink | React 的终端实现，用 React 写 TUI |
-| **状态** | 自研 Pub/Sub Store | 约 30 行，比 Redux 简洁 |
-| **CLI** | Commander.js | 命令行参数解析 |
-| **API** | Anthropic Claude API | LLM 调用 |
-| **协议** | MCP (Model Context Protocol) | 工具服务器协议 |
-| **类型** | TypeScript + Zod | 端到端类型安全 |
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| **Runtime** | Bun | Faster startup than Node |
+| **UI** | Ink | React for terminal, build TUI with React |
+| **State** | Custom Pub/Sub Store | ~30 lines, simpler than Redux |
+| **CLI** | Commander.js | CLI argument parsing |
+| **API** | Anthropic Claude API | LLM calls |
+| **Protocol** | MCP | Model Context Protocol |
+| **Type** | TypeScript + Zod | End-to-end type safety |
 
-### 2.2 关键库
+### 2.2 Feature Flag + DCE
 
-```json
-{
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.40.0",
-    "@modelcontextprotocol/sdk": "^0.5.0",
-    "ink": "^5.0.0",
-    "react": "^18.0.0",
-    "commander": "^12.0.0",
-    "zod": "^3.23.0",
-    "lodash-es": "^4.17.0"
-  }
-}
-```
-
-### 2.3 Feature Flag + DCE
-
-Bun 特有的编译时消除机制：
+Bun's compile-time dead code elimination:
 
 ```typescript
 import { feature } from 'bun:bundle'
 
-// 编译时内联检查，启用则包含代码，否则完全消除
+// Compile-time check, code only included if flag is enabled
 if (feature('COORDINATOR_MODE')) {
-  // 只有开启 COORDINATOR_MODE 编译标志才会包含这段代码
+  // Only included if COORDINATOR_MODE build flag is on
 }
 
-// 常用 Flags
-const COORDINATOR_MODE = feature('COORDINATOR_MODE')  // 多 Agent 协调
-const KAIROS = feature('KAIROS')                     // 助手模式
-const VOICE_MODE = feature('VOICE_MODE')              // 语音模式
-const BG_SESSIONS = feature('BG_SESSIONS')            // 后台会话
+// Common Flags
+const COORDINATOR_MODE = feature('COORDINATOR_MODE')  // Multi-Agent
+const KAIROS = feature('KAIROS')                     // Assistant mode
+const VOICE_MODE = feature('VOICE_MODE')              // Voice mode
+const BG_SESSIONS = feature('BG_SESSIONS')           // Background sessions
 ```
 
 ---
@@ -236,29 +221,29 @@ const BG_SESSIONS = feature('BG_SESSIONS')            // 后台会话
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户
+    participant User
     participant CLI as cli.tsx
     participant MAIN as main.tsx
     participant SETUP as setup.ts
     participant REPL as REPL
 
-    User->>CLI: 执行 claude 命令
-    CLI->>CLI: 检查参数
+    User->>CLI: claude command
+    CLI->>CLI: Check args
 
     alt --version / -v
-        CLI->>CLI: 输出版本号 (零导入)
-        CLI-->>User: 显示版本
-    else 其他命令
-        CLI->>MAIN: 动态 import main.tsx
-        MAIN->>MAIN: 并行预读配置 (~135ms)
-        MAIN->>MAIN: 导入大量模块
-        MAIN->>SETUP: setup() 会话初始化
-        SETUP->>SETUP: 定位 Git 根目录
-        SETUP->>SETUP: 初始化文件监控
-        SETUP->>SETUP: 启动 UDS 通信
-        SETUP-->>MAIN: 返回会话信息
-        MAIN->>REPL: launchRepl() 启动 TUI
-        REPL-->>User: 显示交互界面
+        CLI->>CLI: Output version (zero import)
+        CLI-->>User: Show version
+    else Other commands
+        CLI->>MAIN: Dynamic import main.tsx
+        MAIN->>MAIN: Parallel config preload (~135ms)
+        MAIN->>MAIN: Import modules
+        MAIN->>SETUP: setup() session init
+        SETUP->>SETUP: Find Git root
+        SETUP->>SETUP: Init file watcher
+        SETUP->>SETUP: Start UDS messaging
+        SETUP-->>MAIN: Return session info
+        MAIN->>REPL: launchRepl() start TUI
+        REPL-->>User: Show interface
     end
 ```
 
@@ -266,100 +251,43 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户
+    participant User
     participant QE as QueryEngine
     participant API as Claude API
-    participant Tools as 工具系统
-    participant Store as 状态管理
+    participant Tools as Tools
+    participant Store as State
 
-    User->>QE: 输入问题
-    QE->>QE: 追加用户消息到历史
+    User->>QE: Input question
+    QE->>QE: Append user message
 
-    loop 主循环 (while true)
-        QE->>QE: 检查是否需要压缩上下文
-        QE->>QE: 构建 System Prompt
-        QE->>API: 调用 Claude API (流式)
-        API-->>QE: 流式响应
+    loop Main Loop (while true)
+        QE->>QE: Check if need compact
+        QE->>QE: Build System Prompt
+        QE->>API: Call Claude API (streaming)
+        API-->>QE: Streaming response
 
-        loop 工具执行循环
-            alt tool_use 块
-                QE->>Tools: canUseTool() 权限检查
-                Tools-->>QE: 权限决策
-                alt 允许
+        loop Tool Execution
+            alt tool_use block
+                QE->>Tools: canUseTool() permission check
+                Tools-->>QE: Permission decision
+                alt Allowed
                     QE->>Tools: tool.execute()
-                    Tools-->>QE: 工具结果
-                else 拒绝
-                    QE->>QE: 返回拒绝消息
+                    Tools-->>QE: Tool result
+                else Denied
+                    QE->>QE: Return denied message
                 end
-                QE->>QE: 追加 tool_result 消息
-            else text 块
-                QE-->>User: 流式输出文本
+                QE->>QE: Append tool_result message
+            else text block
+                QE-->>User: Stream text output
             end
         end
 
-        alt 没有更多 tool_use
-            QE->>QE: 退出循环
+        alt No more tool_use
+            QE->>QE: Exit loop
         end
     end
 
-    QE-->>User: 返回最终结果
-```
-
-### 3.3 核心代码
-
-**cli.tsx 快速路径**：
-
-```typescript
-// src/entrypoints/cli.tsx
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-
-  // ⚡ 快速路径：--version 零导入
-  if (args.length === 1 && (args[0] === '--version' || args[0] === '-v')) {
-    console.log(`${MACRO.VERSION} (Claude Code)`);
-    return;
-  }
-
-  // 其他命令才加载完整模块
-  const { cliMain } = await import('./main.js');
-  return cliMain();
-}
-```
-
-**query.ts 核心循环**：
-
-```typescript
-// src/query.ts
-export async function* query(params: QueryParams): AsyncGenerator<...> {
-  const terminal = yield* queryLoop(params, consumedCommandUuids);
-  return terminal;
-}
-
-async function* queryLoop(params: QueryParams, ...): AsyncGenerator<...> {
-  while (true) {
-    // 1. 检查压缩
-    if (shouldCompact(params.messages)) {
-      yield* compactMessages(params);
-    }
-
-    // 2. 构建请求
-    const systemPrompt = buildSystemPrompt(params);
-
-    // 3. 调用 API
-    const stream = await callClaudeAPI(systemPrompt, params.messages);
-
-    // 4. 处理响应
-    for await (const event of stream) {
-      if (event.toolUse) {
-        yield* handleToolUse(event.toolUse);
-      }
-      yield event;
-    }
-
-    // 5. 检查完成
-    if (isComplete(response)) break;
-  }
-}
+    QE-->>User: Return final result
 ```
 
 ---
@@ -368,7 +296,7 @@ async function* queryLoop(params: QueryParams, ...): AsyncGenerator<...> {
 
 ### 4.1 核心循环实现
 
-**QueryEngine 是 Agent 的心脏**：
+**QueryEngine is the heart of Agent**:
 
 ```typescript
 export class QueryEngine {
@@ -377,10 +305,10 @@ export class QueryEngine {
   private context: ToolUseContext;
 
   async *handleNextMessage(userInput: string): AsyncGenerator<Message | StreamEvent> {
-    // 1. 追加用户消息
+    // 1. Append user message
     this.messages.push(createUserMessage(userInput));
 
-    // 2. 主循环
+    // 2. Main loop
     while (true) {
       const response = await this.callAPI(this.buildRequest());
 
@@ -401,27 +329,27 @@ export class QueryEngine {
 
 ### 4.2 提示词工程
 
-**System Prompt 构建**：
+**System Prompt Building**:
 
 ```typescript
 export function buildSystemPrompt(params: QueryParams): SystemPrompt {
   const sections: string[] = [];
 
-  // 1. 核心指令
-  sections.push(`你是一个 AI 编程助手，名为 Claude Code。`);
+  // 1. Core instructions
+  sections.push(`You are Claude Code, an AI coding assistant.`);
 
-  // 2. 可用工具
-  sections.push(`## 可用工具
+  // 2. Available tools
+  sections.push(`## Available Tools
 ${params.tools.map(t => `- ${t.name}: ${t.description}`).join('\n')}`);
 
-  // 3. 工作目录规则
-  sections.push(`## 工作目录规则
-- 只在项目根目录下操作`);
+  // 3. Working directory rules
+  sections.push(`## Working Directory Rules
+- Only operate in project root directory`);
 
-  // 4. 安全规则
-  sections.push(`## 安全规则
-- 删除文件前确认
-- 危险操作需要用户确认`);
+  // 4. Security rules
+  sections.push(`## Security Rules
+- Confirm before deleting files
+- Dangerous operations require user confirmation`);
 
   return sections.join('\n\n');
 }
@@ -429,245 +357,499 @@ ${params.tools.map(t => `- ${t.name}: ${t.description}`).join('\n')}`);
 
 ### 4.3 上下文压缩
 
-**Compact 流程图（Mermaid）**：
+**Compact Flow** (Mermaid):
 
 ```mermaid
 flowchart TD
     A["Check Trigger"] --> B{"tokenCount >= threshold ?"}
     B -->|Yes| C["Calculate Compact Point"]
     B -->|No| Z["Skip Compact"]
-    C --> D["Extract Messages to Compact"]
+    C --> D["Extract Messages"]
     D --> E["Generate Summary"]
     E --> F["Replace with Summary"]
     F --> G["Continue Loop"]
     Z --> G
 ```
 
-**压缩算法**：
+---
+
+## 5. 扩展机制详解
+
+### 5.1 扩展点总览（Mermaid）
+
+```mermaid
+flowchart TB
+    subgraph EntrypointExtensions["Entrypoint Extensions"]
+        CLI["cli.tsx<br/>Fast Path + Subcommands"]
+        AGENT_FLAG["--agent <type><br/>Agent Type Selection"]
+    end
+
+    subgraph CoreExtensions["Core Extension Points"]
+        TOOL["Tool System<br/>40+ Tools"]
+        CMD["Command System<br/>80+ Commands"]
+        HOOK["Hook System<br/>30+ Events"]
+        SKILL["Skill System<br/>Reusable Skills"]
+    end
+
+    subgraph AgentExtensions["Agent Extensions"]
+        AGENT_TOOL["AgentTool<br/>Spawn Subagents"]
+        TEAM["TeamCreate/Delete<br/>Multi-Agent Teams"]
+        SWARM["Swarm Mode<br/>Multi-Agent Collaboration"]
+    end
+
+    subgraph ProtocolExtensions["Protocol Extensions"]
+        MCP["MCP Protocol<br/>Model Context Protocol"]
+        PLUGIN["Plugin System<br/>Plugin Mechanism"]
+    end
+
+    CLI --> TOOL
+    CLI --> CMD
+    TOOL --> AGENT_TOOL
+    AGENT_TOOL --> TEAM
+    TEAM --> SWARM
+    SWARM --> MCP
+    HOOK --> SKILL
+```
+
+### 5.2 核心数据结构
+
+#### 5.2.1 全局状态 (bootstrap/state.ts)
 
 ```typescript
-export async function compactMessages(params: QueryParams): Promise<void> {
-  const compactPoint = findCompactPoint(params.messages);
-  const messagesToCompact = params.messages.slice(0, compactPoint);
+// src/bootstrap/state.ts
+type State = {
+  // Session identity
+  sessionId: SessionId
+  parentSessionId: SessionId | undefined
+  projectRoot: string
+  cwd: string
 
-  // 调用 LLM 生成摘要
-  const summary = await generateSummary(messagesToCompact);
+  // Stats & Cost
+  totalCostUSD: number
+  totalAPIDuration: number
+  totalToolDuration: number
+  modelUsage: { [modelName: string]: ModelUsage }
 
-  // 替换为摘要消息
-  params.messages = [
-    createSummaryMessage(summary),
-    ...params.messages.slice(compactPoint),
-  ];
+  // Agent related
+  agentColorMap: Map<string, AgentColorName>
+  mainThreadAgentType: string | undefined
+
+  // Hooks & Skills
+  registeredHooks: Partial<Record<HookEvent, RegisteredHookMatcher[]>> | null
+  invokedSkills: Map<string, InvokedSkillInfo>
+
+  // Team & Collaboration
+  sessionCreatedTeams: Set<string>
+  teamContext: TeamContext | undefined
+
+  // Time tracking
+  startTime: number
+  lastInteractionTime: number
 }
 ```
 
----
+#### 5.2.2 消息类型
 
-## 5. 扩展机制
-
-### 5.1 工具系统架构
-
-**工具注册流程图（Mermaid）**：
-
-```mermaid
-flowchart LR
-    A["buildTools()"] --> B["Base Tools"]
-    A --> C["Experimental Tools"]
-    A --> D["MCP Tools"]
-    B --> E["Merge Registry"]
-    C --> E
-    D --> E
-    E --> F["Return Tools Array"]
+```typescript
+// Message types
+type Message =
+  | { type: 'user'; content: Content; attachments: Attachment[] }
+  | { type: 'assistant'; content: Content; thinking?: string }
+  | { type: 'tool_use'; tool: string; input: object; id: string }
+  | { type: 'tool_result'; tool_use_id: string; content: Content }
+  | { type: 'summary'; content: string }
 ```
 
-**工具基类**：
+#### 5.2.3 工具定义
 
 ```typescript
 // src/Tool.ts
 export type Tool<Input, Output, P> = {
-  // 核心方法
+  readonly name: string
+  readonly inputSchema: Input
+
+  // Core methods
   call(args, context, canUseTool, parentMessage, onProgress?): Promise<ToolResult<Output>>
   description(args, options): Promise<string>
 
-  // 必填属性
-  readonly name: string
-  readonly inputSchema: Input
-  readonly maxResultSizeChars: number
-
-  // 可选方法（有默认值）
+  // Behavior
   isEnabled(): boolean
   isConcurrencySafe(input): boolean
   isReadOnly(input): boolean
-}
 
-// 工具工厂函数
-const TOOL_DEFAULTS = {
-  isEnabled: () => true,
-  isConcurrencySafe: () => false,
-  isReadOnly: () => false,
-};
-
-export function buildTool<D extends ToolDef>(def: D): Tool {
-  return { ...TOOL_DEFAULTS, userFacingName: () => def.name, ...def };
+  // UI rendering
+  renderToolUseMessage(input, options): React.ReactNode
 }
 ```
 
-**自定义工具示例**：
+#### 5.2.4 Agent 定义
 
 ```typescript
-export const HelloWorldTool = buildTool({
-  name: 'hello_world',
-  description: '打印 Hello World',
-
-  inputSchema: z.object({
-    name: z.string().optional().describe('要问候的名字'),
-  }),
-
-  async call(args, context) {
-    return {
-      data: { message: `Hello, ${args.name || 'World'}!` },
-    };
-  },
-});
+// src/tools/AgentTool/loadAgentsDir.ts
+export type AgentDefinition = {
+  name: string
+  description: string
+  prompt: string
+  tools: string[]
+  model?: 'sonnet' | 'opus' | 'haiku'
+  maxTurns?: number
+  isolation?: 'worktree' | 'remote'
+}
 ```
 
-### 5.2 命令系统架构
-
-**命令解析流程图（Mermaid）**：
-
-```mermaid
-flowchart TD
-    A["User Input"] --> B{Starts with / ?}
-    B -->|Yes| C["Parse Slash Command"]
-    B -->|No| E["Treat as Normal Message"]
-    C --> D["Find Command"]
-    D --> F{"Found ?"}
-    F -->|Yes| G["Execute Command"]
-    F -->|No| H["Unknown Command"]
-```
-
-**命令注册**：
+#### 5.2.5 Team 定义
 
 ```typescript
-export async function getCommands(): Promise<Command[]> {
-  return [
-    new HelpCommand(),
-    new ExitCommand(),
-    new ModelCommand(),
-    new PermissionsCommand(),
-  ];
+// src/utils/swarm/teamHelpers.ts
+export type TeamFile = {
+  name: string
+  description?: string
+  createdAt: number
+  leadAgentId: string
+  leadSessionId: string
+  members: TeamMember[]
 }
 
-export function parseSlashCommand(input: string): { command: string; args: string } | null {
-  const match = input.match(/^\/(\w+)(?:\s+(.*))?$/);
-  return match ? { command: match[1], args: match[2] || '' } : null;
+export type TeamMember = {
+  agentId: string
+  name: string
+  agentType: string
+  model: string
+  joinedAt: number
+  tmuxSessionName: string
+  cwd: string
+  subscriptions: string[]
 }
 ```
 
-### 5.3 Hook 系统架构
+#### 5.2.6 Hook 定义
 
-**权限决策流程图（Mermaid）**：
+```typescript
+// src/types/hooks.ts
+export type HookType =
+  | 'SessionStart' | 'SessionEnd'
+  | 'UserPromptSubmit'
+  | 'PreToolUse' | 'PostToolUse' | 'PostToolUseFailure'
+  | 'Stop' | 'StopFailure'
+  | 'SubagentStart' | 'SubagentStop'
+  | 'PreCompact' | 'PostCompact'
+  | 'WorktreeCreate' | 'WorktreeRemove'
+  | 'Notification' | 'Elicitation'
+```
+
+### 5.3 系统组织方式
+
+#### 5.3.1 模块依赖组织（Mermaid）
 
 ```mermaid
-flowchart TD
-    A["canUseTool()"] --> B{"checkConfigRules?"}
-    B -->|allow| F["Allow"]
-    B -->|deny| G["Deny"]
-    B -->|ask| C{"Coordinator Mode?"}
-    C -->|Yes| D["handleCoordinatorPermission"]
-    C -->|No| E{"Swarm Worker?"}
-    E -->|Yes| H["handleSwarmWorkerPermission"]
-    E -->|No| I{"speculativeClassifier?"}
-    I -->|Pass| F
-    I -->|Fail| J["handleInteractivePermission"]
-    D -->|Decision| F
-    H -->|Decision| F
-    J -->|User Confirm| F
-    J -->|User Deny| G
+flowchart LR
+    subgraph LeafModules["Leaf (No internal deps)"]
+        BOOT["bootstrap/state.ts"]
+        CRYPTO["utils/crypto.ts"]
+        ERROR["utils/errors.ts"]
+    end
+
+    subgraph Entrypoint["Entrypoint"]
+        CLI["entrypoints/cli.tsx"]
+    end
+
+    subgraph Init["Init Layer"]
+        INIT["init.ts"]
+        SETUP["setup.ts"]
+    end
+
+    subgraph CoreEngine["Core Engine"]
+        QUERY["query.ts"]
+        QE["QueryEngine"]
+    end
+
+    subgraph Services["Services"]
+        API["services/api"]
+        COMPACT["services/compact"]
+        MCP["services/mcp"]
+    end
+
+    CLI --> INIT --> SETUP --> QE
+    QE --> QUERY
+    QUERY --> API
+    QUERY --> COMPACT
+    QE --> MCP
+```
+
+### 5.4 工具扩展
+
+**Tool Registration Flow** (Mermaid):
+
+```mermaid
+sequenceDiagram
+    participant App as QueryEngine
+    participant Reg as tools.ts
+    participant Base as Base Tools
+    participant Exp as Experimental
+    participant MCP as MCP Servers
+
+    App->>Reg: buildTools()
+    Reg->>Base: Load built-in tools
+    Reg->>Exp: Check Feature Flags
+    Reg->>MCP: Connect MCP servers
+    Reg-->>App: Tools[]
+```
+
+### 5.5 命令扩展
+
+```typescript
+// src/commands/commands.ts
+const COMMANDS = memoize((): Command[] => [
+  // Built-in commands
+  help, exit, clear, compact, resume,
+  // Git commands
+  commit, branch, diff, review,
+  // Config commands
+  config, hooks, skills, permissions,
+  // ... 80+ commands
+])
+
+// Command parsing
+export function parseSlashCommand(input: string): Command | null {
+  const match = input.match(/^\/(\w+)(?:\s+(.*))?$/)
+  if (!match) return null
+  return findCommand(match[1])
+}
+```
+
+### 5.6 Hook 扩展
+
+```typescript
+// Hook configuration example
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "command",
+        "if": "Bash(rm *)",
+        "command": ".claude/hooks/block-rm.sh"
+      }]
+    }]
+  }
+}
 ```
 
 ---
 
-## 6. 其他工程经验
+## 6. 多 Agent 架构
 
-### 6.1 极简响应式 Store
-
-**约 30 行的完整实现**：
-
-```typescript
-// src/state/store.ts
-type Listener = () => void;
-
-export function createStore<T>(initialState: T, onChange?) {
-  let state = initialState;
-  const listeners = new Set<Listener>();  // Set 自动去重
-
-  return {
-    getState: () => state,
-
-    setState: (updater) => {
-      const prev = state;
-      const next = updater(prev);
-      if (Object.is(next, prev)) return;  // 新旧相同则跳过
-      state = next;
-      onChange?.({ newState: next, oldState: prev });
-      for (const listener of listeners) listener();
-    },
-
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);  // 返回取消订阅
-    },
-  };
-}
-```
-
-**借鉴意义**：
-- `Object.is()` 检查避免无效渲染
-- `Set` 存储 listeners 自动去重
-- 返回取消订阅函数，内存安全
-- 约 30 行 vs Redux 100+ 行
-
-### 6.2 依赖注入
-
-```typescript
-// src/query/deps.ts
-export type QueryDeps = {
-  callClaudeAPI: typeof callClaudeAPI;
-  tools: Tools;
-  canUseTool: CanUseToolFn;
-  compact: typeof compactMessages;
-};
-
-export async function* query(params: QueryParams): AsyncGenerator<...> {
-  const deps = params.deps ?? productionDeps;  // 默认生产依赖
-  const response = await deps.callClaudeAPI(request);
-}
-```
-
-### 6.3 Coordinator 模式
-
-**多 Agent 协调**：
+### 6.1 多 Agent 架构总览（Mermaid）
 
 ```mermaid
-flowchart LR
-    A["Main Agent<br/>Coordinator"] -->|Dispatch| B["Worker 1"]
-    A -->|Dispatch| C["Worker 2"]
-    A -->|Dispatch| D["Worker N"]
-    B -->|Result| A
-    C -->|Result| A
-    D -->|Result| A
-    A -->|Aggregate| E["Return to User"]
+flowchart TB
+    subgraph SingleAgent["Single Agent Mode"]
+        SQE["QueryEngine<br/>Main Loop"]
+        ST["Tool<br/>Tools"]
+    end
+
+    subgraph SubagentMode["Subagent Mode"]
+        SQE2["QueryEngine<br/>Main Loop"]
+        SA["AgentTool<br/>Dispatch"]
+        SE1["Subagent 1<br/>Isolated Context"]
+        SE2["Subagent 2<br/>Isolated Context"]
+    end
+
+    subgraph TeamMode["Team Mode"]
+        LEADER["Team Lead<br/>Coordinator"]
+        TM1["Teammate 1<br/>Executor"]
+        TM2["Teammate 2<br/>Executor"]
+        SHARED["Shared TeamFile<br/>State Sync"]
+    end
+
+    subgraph SwarmMode["Swarm/Coordinator Mode"]
+        COORD["Coordinator<br/>Task Decomposition"]
+        WORK1["Worker 1<br/>Subtask"]
+        WORK2["Worker 2<br/>Subtask"]
+        WORK3["Worker N<br/>Subtask"]
+    end
+
+    SQE --> ST
+    SQE2 --> SA
+    SA --> SE1
+    SA --> SE2
+    SE1 --> ST
+    SE2 --> ST
+    LEADER --> TM1
+    LEADER --> TM2
+    TM1 --> SHARED
+    TM2 --> SHARED
+    COORD --> WORK1
+    COORD --> WORK2
+    COORD --> WORK3
+```
+
+### 6.2 Subagent 实现
+
+#### 6.2.1 Subagent 生命周期
+
+```mermaid
+sequenceDiagram
+    participant Main as Main Agent
+    participant AT as AgentTool
+    participant Task as LocalAgentTask
+    participant Agent as Subagent
+
+    Main->>AT: AgentTool({prompt, subagent_type})
+    AT->>Task: createAsyncAgent()
+    Task->>Agent: spawn subprocess
+
+    loop Agent Loop
+        Agent->>Agent: query()
+        Agent->>Main: <task-notification>
+    end
+
+    Agent->>Task: complete(result)
+    Task-->>AT: {status: 'completed'}
+    AT-->>Main: {agentId, result}
+```
+
+#### 6.2.2 AgentTool 核心实现
+
+```typescript
+// src/tools/AgentTool/AgentTool.tsx
+export const AgentTool = buildTool({
+  name: 'Agent',
+  inputSchema: z.object({
+    description: z.string().describe('Task description'),
+    prompt: z.string().describe('Task content'),
+    subagent_type: z.string().optional().describe('Agent type'),
+    run_in_background: z.boolean().optional(),
+  }),
+
+  async call(input, context) {
+    // 1. Create async task
+    const taskId = await createAsyncAgent({
+      prompt: input.prompt,
+      agentType: input.subagent_type || 'general-purpose',
+    })
+
+    // 2. Return task ID (for background run)
+    if (input.run_in_background) {
+      return { status: 'async_launched', agentId: taskId }
+    }
+
+    // 3. Wait for completion (sync mode)
+    const result = await waitForAgent(taskId)
+    return { status: 'completed', ...result }
+  },
+})
+```
+
+#### 6.2.3 工具白名单
+
+```typescript
+// Worker can only use limited tools
+const WORKER_TOOLS = ['Bash', 'Read', 'Edit']
+
+export function getAllowedToolsForAgent(agentType: string): string[] {
+  if (agentType === 'worker') {
+    return WORKER_TOOLS
+  }
+  return ALL_TOOLS  // coordinator can use everything
+}
+```
+
+### 6.3 Team 模式实现
+
+#### 6.3.1 Team 创建流程
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant AT as AgentTool
+    participant TC as TeamCreate
+    participant TF as TeamFile
+    participant App as AppState
+
+    User->>AT: @team/create team_name=research
+    AT->>TC: TeamCreate({team_name})
+    TC->>TF: writeTeamFile(research)
+    TF-->>TC: teamFile created
+    TC->>App: setAppState({teamContext})
+    App-->>TC: teamContext updated
+    TC-->>User: {leadAgentId, teamFilePath}
+```
+
+#### 6.3.2 TeamCreateTool 实现
+
+```typescript
+// src/tools/TeamCreateTool/TeamCreateTool.ts
+export const TeamCreateTool = buildTool({
+  name: 'TeamCreate',
+
+  async call(input, context) {
+    const { team_name, description, agent_type } = input
+
+    // 1. Generate unique team name
+    const finalTeamName = generateUniqueTeamName(team_name)
+
+    // 2. Create TeamFile
+    const teamFile: TeamFile = {
+      name: finalTeamName,
+      leadAgentId: formatAgentId(TEAM_LEAD_NAME, finalTeamName),
+      members: [{ agentId, name: TEAM_LEAD_NAME, ... }],
+    }
+
+    // 3. Write to disk
+    await writeTeamFileAsync(finalTeamName, teamFile)
+
+    // 4. Update AppState
+    setAppState(prev => ({
+      ...prev,
+      teamContext: { teamName: finalTeamName, teammates: {...} },
+    }))
+
+    return { team_name: finalTeamName, team_file_path, lead_agent_id }
+  },
+})
+```
+
+### 6.4 Coordinator 模式
+
+```mermaid
+flowchart TD
+    A["User Request"] --> B{"Analyze Task Type"}
+    B -->|Simple| C["Execute Directly"]
+    B -->|Complex| D["Decompose Subtasks"]
+    D --> E["Dispatch Worker 1"]
+    D --> F["Dispatch Worker 2"]
+    D --> G["Dispatch Worker N"]
+    E --> H["Collect Results"]
+    F --> H
+    G --> H
+    H --> I["Aggregate Results"]
+    I --> J["Return to User"]
 ```
 
 ```typescript
-export function isCoordinatorMode(): boolean {
-  if (feature('COORDINATOR_MODE')) {
-    return isEnvTruthy(process.env.CLAUCE_CODE_COORDINATOR_MODE);
-  }
-  return false;
+// Coordinator system prompt
+export function getCoordinatorPrompt(): string {
+  return `You are the coordinator of a multi-agent team.
+When given a complex task:
+1. Analyze if it can be parallelized
+2. Break into subtasks
+3. Dispatch to workers with clear instructions
+4. Aggregate results
+5. Present unified response`
 }
 ```
+
+### 6.5 Agent 类型总览
+
+| Type | Purpose | Tool Permission | Context |
+|------|---------|----------------|---------|
+| `general-purpose` | General tasks | All | Main session |
+| `Bash` | Execute commands | Bash-only | New |
+| `Explore` | Code exploration | Read/Grep/Glob | New |
+| `Plan` | Make plans | Limited | Main session |
+| `Worker` | Subtask execution | Whitelist | Isolated |
+| `Team Lead` | Team coordination | All | Team shared |
 
 ---
 
@@ -675,21 +857,12 @@ export function isCoordinatorMode(): boolean {
 
 ### 7.1 query.ts 核心循环
 
-#### query() 函数的完整实现
-
-`query()` 是整个 Agent 循环的入口点，返回一个 `AsyncGenerator`：
+#### query() 完整实现
 
 ```typescript
 export async function* query(
   params: QueryParams,
-): AsyncGenerator<
-  | StreamEvent
-  | RequestStartEvent
-  | Message
-  | TombstoneMessage
-  | ToolUseSummaryMessage,
-  Terminal
-> {
+): AsyncGenerator<StreamEvent | Message> {
   const consumedCommandUuids: string[] = []
   const terminal = yield* queryLoop(params, consumedCommandUuids)
   for (const uuid of consumedCommandUuids) {
@@ -699,284 +872,167 @@ export async function* query(
 }
 ```
 
-**关键设计点：**
-- `yield* queryLoop()` — 使用 **yield* 委托机制**
-- `consumedCommandUuids` — 追踪本轮消耗的命令 UUID
-- 返回值是 `Terminal` 类型，标识循环退出原因
-
-#### queryLoop() 的 while 循环逻辑
+#### queryLoop() while 循环逻辑
 
 ```typescript
-async function* queryLoop(params: QueryParams, consumedCommandUuids: string[]): AsyncGenerator<...> {
-  // 不可变参数
-  const { systemPrompt, userContext, systemContext, canUseTool, ... } = params
-
-  // 可变跨迭代状态
+async function* queryLoop(params: QueryParams, ...): AsyncGenerator<...> {
   let state: State = {
     messages: params.messages,
     toolUseContext: params.toolUseContext,
-    autoCompactTracking: undefined,
-    maxOutputTokensRecoveryCount: 0,
     turnCount: 1,
-    pendingToolUseSummary: undefined,
   }
 
   while (true) {
-    // 1. 前处理：snip、microcompact、autocompact
-    // 2. 调用 API：deps.callModel()
-    // 3. 工具执行：runTools() 或 streamingToolExecutor
-    // 4. 状态更新 + continue / return
+    // 1. Pre-check: snip, microcompact, autocompact
+    // 2. Call API: deps.callModel()
+    // 3. Tool execution: runTools()
+    // 4. State update + continue / return
   }
 }
 ```
 
-**循环退出路径：**
-1. `{ reason: 'completed' }` — 正常完成
-2. `{ reason: 'aborted_streaming' }` — 用户中断
-3. `{ reason: 'prompt_too_long' }` — 上下文超限
-4. `{ reason: 'max_turns', turnCount }` — 达到最大轮数
+#### 循环退出路径
 
-#### AsyncGenerator 的 yield* 委托机制
-
-```typescript
-// query() 中
-const terminal = yield* queryLoop(params, consumedCommandUuids)
-// 等价于:
-// for await (const item of queryLoop(params)) { yield item }
-// return queryLoop.return()
-```
-
-`yield*` 的关键语义：
-- 将 Generator 控制权委托给另一个 Generator
-- 委托方产生的所有值直接 yield 给上层调用者
-- 委托方 return 的值作为 `yield*` 表达式的结果
-
-#### 错误恢复机制
-
-```typescript
-// 1. 模型降级
-if (innerError instanceof FallbackTriggeredError && fallbackModel) {
-  currentModel = fallbackModel
-  continue // 重试
-}
-
-// 2. max_output_tokens 恢复
-if (isWithheldMaxOutputTokens(lastMessage)) {
-  if (maxOutputTokensRecoveryCount < MAX_OUTPUT_TOKENS_RECOVERY_LIMIT) {
-    state = { ...state, transition: { reason: 'max_output_tokens_recovery' } }
-    continue
-  }
-}
-
-// 3. prompt_too_long 恢复（先尝试 collapse，再尝试 reactive compact）
-```
-
----
+| Exit | Meaning |
+|------|---------|
+| `{ reason: 'completed' }` | Normal completion |
+| `{ reason: 'aborted_streaming' }` | User interrupted |
+| `{ reason: 'prompt_too_long' }` | Context overflow |
+| `{ reason: 'max_turns', turnCount }` | Max turns reached |
 
 ### 7.2 Tool.ts 工具基类
 
-#### Tool 类型的完整定义
-
 ```typescript
-export type Tool<Input, Output, P> = {
-  // 核心方法
-  call(args, context, canUseTool, parentMessage, onProgress?): Promise<ToolResult<Output>>
-  description(args, options): Promise<string>
-
-  // 必填属性
-  readonly name: string
-  readonly inputSchema: Input
-  readonly maxResultSizeChars: number
-
-  // 行为特性
-  isConcurrencySafe(input): boolean
-  isReadOnly(input): boolean
-  isDestructive?(input): boolean
-
-  // UI 渲染
-  renderToolUseMessage(input, options): React.ReactNode
-  renderToolResultMessage?(content, options): React.ReactNode
-}
-```
-
-#### buildTool() 工厂函数
-
-```typescript
+// src/Tool.ts
 const TOOL_DEFAULTS = {
   isEnabled: () => true,
-  isConcurrencySafe: () => false,  // 默认不安全
-  isReadOnly: () => false,        // 默认有写入
+  isConcurrencySafe: () => false,
+  isReadOnly: () => false,
   isDestructive: () => false,
   checkPermissions: () => ({ behavior: 'allow' }),
-  toAutoClassifierInput: () => '',  // 默认跳过分类器
-};
+  toAutoClassifierInput: () => '',
+}
 
 export function buildTool<D extends ToolDef>(def: D): Tool {
-  return { ...TOOL_DEFAULTS, userFacingName: () => def.name, ...def };
+  return { ...TOOL_DEFAULTS, userFacingName: () => def.name, ...def }
 }
 ```
-
----
 
 ### 7.3 state/store.ts 极简 Store
 
 ```typescript
 export function createStore<T>(initialState: T, onChange?) {
-  let state = initialState;
-  const listeners = new Set<Listener>();
+  let state = initialState
+  const listeners = new Set<Listener>()
 
   return {
     getState: () => state,
-
     setState: (updater) => {
-      const prev = state;
-      const next = updater(prev);
-      if (Object.is(next, prev)) return;  // Object.is 做相等性检查
-      state = next;
-      onChange?.({ newState: next, oldState: prev });
-      for (const listener of listeners) listener();
+      const prev = state
+      const next = updater(prev)
+      if (Object.is(next, prev)) return  // Skip if unchanged
+      state = next
+      onChange?.({ newState: next, oldState: prev })
+      for (const listener of listeners) listener()
     },
-
     subscribe: (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      listeners.add(listener)
+      return () => listeners.delete(listener)
     },
-  };
-}
-```
-
-**设计亮点：**
-- **Set 而非 Array**：自动去重
-- **`Object.is()` 短路**：状态未变时不触发更新
-- **`onChange` 钩子**：可选的全局变化回调
-
----
-
-### 7.4 context.ts 上下文构建
-
-**缓存模式**：
-
-```typescript
-export const getSystemContext = memoize(async (): Promise<{[k: string]: string}> => {
-  const gitStatus = await getGitStatus()
-  return { ...(gitStatus && { gitStatus }) }
-})
-
-export const getUserContext = memoize(async (): Promise<{[k: string]: string}> => {
-  const claudeMd = getClaudeMds()
-  return {
-    ...(claudeMd && { claudeMd }),
-    currentDate: `Today's date is ${getLocalISODate()}.`,
   }
-})
-```
-
----
-
-### 7.5 commands.ts 命令系统
-
-**条件编译模式**：
-
-```typescript
-const proactive = feature('PROACTIVE') || feature('KAIROS')
-  ? require('./commands/proactive.js').default
-  : null
-
-const COMMANDS = memoize((): Command[] => [
-  addDir, advisor, agents, branch, btw, clear, color, compact, ...
-  ...(proactive ? [proactive] : []),
-])
-```
-
----
-
-### 7.6 hooks/useCanUseTool.tsx 权限系统
-
-**权限决策流程**：
-
-```
-hasPermissionsToUseTool() → PermissionResult
-    ├── behavior: 'allow' → 直接放行
-    ├── behavior: 'deny' → 记录日志 + 返回拒绝
-    └── behavior: 'ask' → 进入交互式流程
-                              ├── handleCoordinatorPermission()
-                              ├── handleSwarmWorkerPermission()
-                              ├── speculativeClassifierCheck() (2s 超时)
-                              └── handleInteractivePermission()
-```
-
----
-
-### 7.7 services/compact/ 上下文压缩
-
-**自动压缩触发条件**：
-
-```typescript
-export async function shouldAutoCompact(messages, model, ...): Promise<boolean> {
-  // 1. 不是 session_memory 或 compact 查询
-  if (querySource === 'session_memory') return false
-
-  // 2. 阈值检查
-  const tokenCount = tokenCountWithEstimation(messages)
-  const threshold = getEffectiveContextWindowSize(model) - 13_000
-  return tokenCount >= threshold
 }
 ```
 
-**Circuit Breaker**：
+### 7.4 services/compact/ 上下文压缩
+
+**Circuit Breaker**:
 
 ```typescript
-const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3
-if (tracking?.consecutiveFailures >= MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES) {
-  return { wasCompacted: false } // 停止重试
-}
-```
+const MAX_CONSECUTIVE_FAILURES = 3
 
----
-
-### 7.8 coordinatorMode.ts 多Agent协调
-
-**Coordinator 模式**：
-
-```typescript
-export function isCoordinatorMode(): boolean {
-  if (feature('COORDINATOR_MODE')) {
-    return isEnvTruthy(process.env.CLAUCE_CODE_COORDINATOR_MODE)
+export async function autoCompact(params: QueryParams): Promise<boolean> {
+  if (tracking.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+    return false  // Stop retrying
   }
-  return false
+
+  try {
+    await compactMessages(params)
+    tracking.consecutiveFailures = 0
+    return true
+  } catch (error) {
+    tracking.consecutiveFailures++
+    return false
+  }
 }
-```
-
-**Worker 工具限制**：
-
-```typescript
-const workerTools = isEnvTruthy(process.env.CLAUCE_CODE_SIMPLE)
-  ? [BASH_TOOL_NAME, FILE_READ_TOOL_NAME, FILE_EDIT_TOOL_NAME]
-  : Array.from(ASYNC_AGENT_ALLOWED_TOOLS)
 ```
 
 ---
 
-## 总结
+## 8. 其他工程经验
 
-### 核心设计经验
+### 8.1 快速路径优化
 
-| 经验 | 说明 |
-|------|------|
-| **快速路径优化** | 零导入 `--version`，动态 `import()` |
-| **极简 Store** | 30 行实现响应式，`Object.is` + `Set` |
-| **Feature Flag + DCE** | `feature('FLAG')` 编译时消除 |
-| **工具插件化** | `Tool` 基类 + `buildTool()` 工厂 |
-| **Hook 注入权限** | 权限逻辑可替换，4 层决策流程 |
-| **AsyncGenerator 流式** | `yield*` 委托实现流式处理 |
-| **依赖注入** | 核心逻辑与实现分离 |
-| **Coordinator 模式** | 多 Agent 编排，系统提示协调 |
-| **Circuit Breaker** | 连续失败 N 次后停止重试 |
-| **上下文压缩** | 自动阈值触发 + circuit breaker |
+```typescript
+// src/entrypoints/cli.tsx
+async function main(): Promise<void> {
+  const args = process.argv.slice(2)
 
-### 核心原则
+  // Zero-import version check
+  if (args.length === 1 && (args[0] === '--version')) {
+    console.log(`${MACRO.VERSION} (Claude Code)`)
+    return
+  }
 
-1. **性能优先**：快速路径、延迟加载、DCE
-2. **简洁**：用最少的代码解决问题（30 行 Store vs 100+ 行 Redux）
-3. **可扩展**：插件化、Hook 注入、Feature Flag
-4. **可测试**：依赖注入、模块化
+  // Only load full module for other commands
+  const { cliMain } = await import('./main.js')
+  return cliMain()
+}
+```
+
+### 8.2 Feature Flag + DCE
+
+```typescript
+import { feature } from 'bun:bundle'
+
+// Compile-time elimination
+if (feature('COORDINATOR_MODE')) {
+  require('./coordinatorMode.js')
+}
+```
+
+### 8.3 Circuit Breaker
+
+```typescript
+const MAX_CONSECUTIVE_FAILURES = 3
+
+// Stop retrying after N failures
+if (tracking.failures >= MAX_CONSECUTIVE_FAILURES) {
+  return { wasCompacted: false }
+}
+```
+
+---
+
+## Summary
+
+### Core Design Patterns
+
+| Pattern | Description |
+|---------|-------------|
+| **Fast Path Optimization** | Zero-import `--version`, dynamic `import()` |
+| **Feature Flag + DCE** | `feature('FLAG')` compile-time elimination |
+| **Simple Store** | 30 lines, `Object.is` + `Set` |
+| **Tool Plugin System** | `Tool` base class + `buildTool()` factory |
+| **Hook Injection** | Permission logic replaceable, 4-layer decision |
+| **AsyncGenerator Streaming** | `yield*` delegation for streaming |
+| **Dependency Injection** | Core logic separated from implementation |
+| **Coordinator Mode** | Multi-Agent orchestration via system prompt |
+| **Circuit Breaker** | Stop retry after N consecutive failures |
+| **Context Compression** | Auto threshold trigger + circuit breaker |
+
+### Core Principles
+
+1. **Performance First**: Fast path, lazy loading, DCE
+2. **Simplicity**: Solve problems with minimum code (30-line Store vs 100+ Redux)
+3. **Extensibility**: Plugin-based, Hook injection, Feature Flags
+4. **Testability**: Dependency injection, modularity
