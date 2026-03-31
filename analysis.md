@@ -433,13 +433,13 @@ ${params.tools.map(t => `- ${t.name}: ${t.description}`).join('\n')}`);
 
 ```mermaid
 flowchart TD
-    A["检查触发条件"] --> B{"tokenCount >= threshold?"}
-    B -->|是| C["计算压缩点"]
-    B -->|否| Z["跳过压缩"]
-    C --> D["提取待压缩消息"]
-    D --> E["生成摘要"]
-    E --> F["替换为摘要消息"]
-    F --> G["继续查询循环"]
+    A["Check Trigger"] --> B{"tokenCount >= threshold ?"}
+    B -->|Yes| C["Calculate Compact Point"]
+    B -->|No| Z["Skip Compact"]
+    C --> D["Extract Messages to Compact"]
+    D --> E["Generate Summary"]
+    E --> F["Replace with Summary"]
+    F --> G["Continue Loop"]
     Z --> G
 ```
 
@@ -471,13 +471,13 @@ export async function compactMessages(params: QueryParams): Promise<void> {
 
 ```mermaid
 flowchart LR
-    A["buildTools()"] --> B["基础工具"]
-    A --> C["实验性工具"]
-    A --> D["MCP 工具"]
-    B --> E["合并注册表"]
+    A["buildTools()"] --> B["Base Tools"]
+    A --> C["Experimental Tools"]
+    A --> D["MCP Tools"]
+    B --> E["Merge Registry"]
     C --> E
     D --> E
-    E --> F["返回 Tools 数组"]
+    E --> F["Return Tools Array"]
 ```
 
 **工具基类**：
@@ -537,13 +537,13 @@ export const HelloWorldTool = buildTool({
 
 ```mermaid
 flowchart TD
-    A["用户输入"] --> B{以 / 开头?"}
-    B -->|是| C["解析斜杠命令"]
-    B -->|否| E["作为普通消息处理"]
-    C --> D["查找命令"]
-    D --> F{"找到?"}
-    F -->|是| G["执行命令"]
-    F -->|否| H["提示未知命令"]
+    A["User Input"] --> B{Starts with / ?}
+    B -->|Yes| C["Parse Slash Command"]
+    B -->|No| E["Treat as Normal Message"]
+    C --> D["Find Command"]
+    D --> F{"Found ?"}
+    F -->|Yes| G["Execute Command"]
+    F -->|No| H["Unknown Command"]
 ```
 
 **命令注册**：
@@ -571,19 +571,19 @@ export function parseSlashCommand(input: string): { command: string; args: strin
 ```mermaid
 flowchart TD
     A["canUseTool()"] --> B{"checkConfigRules?"}
-    B -->|allow| F["放行"]
-    B -->|deny| G["拒绝"]
-    B -->|ask| C{"Coordinator模式?"}
-    C -->|是| D["handleCoordinatorPermission"]
-    C -->|否| E{"Swarm Worker?"}
-    E -->|是| H["handleSwarmWorkerPermission"]
-    E -->|否| I{"speculativeClassifier?"}
-    I -->|通过| F
-    I -->|失败| J["handleInteractivePermission"]
-    D -->|决策| F
-    H -->|决策| F
-    J -->|用户确认| F
-    J -->|用户拒绝| G
+    B -->|allow| F["Allow"]
+    B -->|deny| G["Deny"]
+    B -->|ask| C{"Coordinator Mode?"}
+    C -->|Yes| D["handleCoordinatorPermission"]
+    C -->|No| E{"Swarm Worker?"}
+    E -->|Yes| H["handleSwarmWorkerPermission"]
+    E -->|No| I{"speculativeClassifier?"}
+    I -->|Pass| F
+    I -->|Fail| J["handleInteractivePermission"]
+    D -->|Decision| F
+    H -->|Decision| F
+    J -->|User Confirm| F
+    J -->|User Deny| G
 ```
 
 ---
@@ -651,13 +651,13 @@ export async function* query(params: QueryParams): AsyncGenerator<...> {
 
 ```mermaid
 flowchart LR
-    A["主 Agent<br/>Coordinator"] -->|派发任务| B["Worker 1"]
-    A -->|派发任务| C["Worker 2"]
-    A -->|派发任务| D["Worker N"]
-    B -->|结果| A
-    C -->|结果| A
-    D -->|结果| A
-    A -->|聚合| E["返回用户"]
+    A["Main Agent<br/>Coordinator"] -->|Dispatch| B["Worker 1"]
+    A -->|Dispatch| C["Worker 2"]
+    A -->|Dispatch| D["Worker N"]
+    B -->|Result| A
+    C -->|Result| A
+    D -->|Result| A
+    A -->|Aggregate| E["Return to User"]
 ```
 
 ```typescript
