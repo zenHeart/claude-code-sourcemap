@@ -479,12 +479,329 @@ App
 
 ---
 
-## 9. 总结
+## 9. 值得借鉴的设计经验
 
-Claude Code 是一个设计精良的 CLI 应用：
+### 9.1 快速路径优化 (Fast Path Optimization)
 
-1. **分层+模块化**：清晰的分层架构，每个模块职责单一
-2. **性能优先**：快速路径优化、Feature Flag DCE、极简状态管理
-3. **可扩展**：插件化的工具和命令系统
-4. **多 Agent**：Coordinator 模式支持复杂任务分解
-5. **TypeScript**：完整的类型安全
+**cli.tsx 的零导入快速路径**：
+
+```typescript
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+
+  // Fast-path for --version: zero module loading needed
+  if (args.length === 1 && (args[0] === '--version' || args[0] === '-v')) {
+    console.log(`${MACRO.VERSION} (Claude Code)`);
+    return;  // 直接返回，不加载任何模块
+  }
+
+  // 其他命令才加载完整模块
+  const { profileCheckpoint } = await import('../utils/startupProfiler.js');
+  // ...
+}
+```
+
+**借鉴意义**：
+- 基本命令（`--version`, `--help`）不需要加载任何业务模块
+- 使用动态 `import()` 延迟加载，非必要不导入
+- 减少 CLI 启动时间，提升用户体验
+
+---
+
+### 9.2 极简响应式 Store（约 30 行）
+
+**state/store.ts**：
+
+```typescript
+type Listener = () => void
+
+export function createStore<T>(initialState: T, onChange?) {
+  let state = initialState
+  const listeners = new Set<Listener>()  // Set 自动去重
+
+  return {
+    getState: () => state,
+
+    setState: (updater) => {
+      const prev = state
+      const next = updater(prev)
+      if (Object.is(next, prev)) return  // 新旧相同则跳过，避免无效渲染
+      state = next
+      onChange?.({ newState: next, oldState: prev })
+      for (const listener of listeners) listener()
+    },
+
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)  // 返回取消订阅函数
+    },
+  }
+}
+```
+
+**借鉴意义**：
+- 使用 `Object.is()` 检查状态变化，避免无效更新
+- `Set` 存储 listeners，自动去重
+- 返回取消订阅函数，内存安全
+- 约 30 行实现完整的响应式模式，比 Redux 简洁得多
+
+---
+
+### 9.3 Feature Flag + DCE
+
+**编译时消除不需要的代码**：
+
+```typescript
+// 方式 1：条件导入（编译时消除）
+const SleepTool = feature('PROACTIVE') || feature('KAIROS')
+  ? require('./tools/SleepTool/SleepTool.js').SleepTool
+  : null
+
+// 方式 2：feature() 内联检查
+if (feature('COORDINATOR_MODE')) {
+  // 只有开启 COORDINATOR_MODE 才加载
+}
+
+// 方式 3：环境变量 + 类型守卫
+const cronTools = feature('AGENT_TRIGGERS')
+  ? [CronCreateTool, CronDeleteTool, CronListTool]
+  : []
+```
+
+**借鉴意义**：
+- `feature('FLAG_NAME')` 从 `bun:bundle` 内联检查
+- 未启用的功能完全不会进入产物
+- 支持动态开启/关闭功能
+- 常见 Flags：`COORDINATOR_MODE`, `VOICE_MODE`, `KAIROS`, `BG_SESSIONS`
+
+---
+
+### 9.4 工具系统的插件化设计
+
+**Tool.ts 的工具基类**：
+
+```typescript
+export type Tool<Input, Output, P> = {
+  // 核心方法
+  call(args, context, canUseTool, parentMessage, onProgress?): Promise<ToolResult<Output>>
+  description(input, options): Promise<string>
+
+  // 必填字段
+  readonly name: string
+  readonly inputSchema: Input
+
+  // 可选方法（有默认值）
+  isEnabled(): boolean                    // 默认 true
+  isConcurrencySafe(input): boolean       // 默认 false
+  isReadOnly(input): boolean              // 默认 false
+  isDestructive(input): boolean          // 默认 false
+  checkPermissions(input, context)        // 默认 allow
+  userFacingName(input): string           // 默认 name
+}
+
+// 工具构建器，自动填充默认值
+export function buildTool<D extends ToolDef>(def: D): BuiltTool<D> {
+  return {
+    ...TOOL_DEFAULTS,        // 30 行默认实现
+    userFacingName: () => def.name,
+    ...def,
+  }
+}
+```
+
+**借鉴意义**：
+- 所有工具有统一的接口（Tool 基类）
+- `buildTool()` 工厂函数自动填充默认值
+- 工具注册表（tools.ts）统一管理 30+ 工具
+- 工具可以声明 `isConcurrencySafe` 控制并发安全
+
+---
+
+### 9.5 权限系统的 Hook 注入
+
+**useCanUseTool.tsx**：
+
+```typescript
+// 权限检查函数类型
+export type CanUseToolFn = (
+  tool: Tool,
+  input: Input,
+  context: ToolUseContext,
+  assistantMessage: AssistantMessage,
+  toolUseID: string,
+  forceDecision?: PermissionDecision
+) => Promise<PermissionDecision>
+
+// 注入到 QueryEngine，不是硬编码
+const decisionPromise = forceDecision !== undefined
+  ? Promise.resolve(forceDecision)
+  : hasPermissionsToUseTool(tool, input, context, assistantMessage, toolUseID)
+```
+
+**借鉴意义**：
+- 权限判断通过 Hook 注入，不是硬编码 if-else
+- 支持多种模式：Interactive、Coordinator、Swarm Worker、Bypass
+- 每个工具执行前通过 `canUseTool` 函数判断
+- 方便测试和扩展
+
+---
+
+### 9.6 AsyncGenerator 实现流式处理
+
+**query.ts 的查询循环**：
+
+```typescript
+export async function* query(params: QueryParams): AsyncGenerator<
+  | StreamEvent      // 流式事件
+  | RequestStartEvent
+  | Message
+  | ToolUseSummaryMessage,
+  Terminal           // 返回类型
+> {
+  const consumedCommandUuids: string[] = []
+  const terminal = yield* queryLoop(params, consumedCommandUuids)
+  return terminal
+}
+
+async function* queryLoop(params: QueryParams, ...) {
+  // 主循环
+  while (true) {
+    const result = yield* api.call(params)  // yield* 流式调用
+    // 处理结果...
+    if (isTerminal(result)) break
+  }
+}
+```
+
+**借鉴意义**：
+- 使用 `AsyncGenerator` 实现流式处理
+- `yield*` 委托给子生成器，代码更清晰
+- 支持增量输出（流式响应）
+- 可以 `yield` 出中间状态（进度、错误等）
+
+---
+
+### 9.7 Coordinator 模式（多 Agent 编排）
+
+**coordinatorMode.ts**：
+
+```typescript
+export function isCoordinatorMode(): boolean {
+  if (feature('COORDINATOR_MODE')) {
+    return isEnvTruthy(process.env.CLAUDE_CODE_COORDINATOR_MODE)
+  }
+  return false
+}
+
+// Worker 可用的工具
+const workerTools = isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE)
+  ? [BASH_TOOL_NAME, FILE_READ_TOOL_NAME, FILE_EDIT_TOOL_NAME]
+  : Array.from(ASYNC_AGENT_ALLOWED_TOOLS)
+```
+
+**借鉴意义**：
+- 主 Agent 扮演协调者，通过 `AgentTool` 派发 worker
+- 子 Agent 结果通过 `<task-notification>` 异步返回
+- 支持任务分解、并行执行、结果聚合
+- Coordinator 模式可以做得更复杂（Swarm 模式）
+
+---
+
+### 9.8 依赖注入 (Dependency Injection)
+
+**query.ts 的 deps**：
+
+```typescript
+// 依赖通过参数传入，而非硬编码
+export type QueryParams = {
+  messages: Message[]
+  systemPrompt: SystemPrompt
+  userContext: { [k: string]: string }
+  systemContext: { [k: string]: string }
+  canUseTool: CanUseToolFn      // 注入
+  toolUseContext: ToolUseContext // 注入
+  deps?: QueryDeps              // 可选依赖
+  // ...
+}
+```
+
+**借鉴意义**：
+- 核心逻辑不依赖具体实现，通过参数注入
+- 方便测试时 mock 依赖
+- `deps?: QueryDeps` 可选依赖，有默认值
+
+---
+
+### 9.9 ToolUseContext 的上下文传递
+
+**Tool.ts 的上下文类型**：
+
+```typescript
+export type ToolUseContext = {
+  options: {
+    tools: Tools
+    mcpClients: MCPServerConnection[]
+    agentDefinitions: AgentDefinitionsResult
+    maxBudgetUsd?: number
+    refreshTools?: () => Tools
+    // ...
+  }
+  abortController: AbortController
+  getAppState(): AppState
+  setAppState(f: (prev: AppState) => AppState): void
+  setToolJSX?: SetToolJSXFn
+  addNotification?: (notif: Notification) => void
+  // ...
+  messages: Message[]
+}
+```
+
+**借鉴意义**：
+- 所有上下文通过一个对象传递，避免参数爆炸
+- 包含状态、操作、工具、消息等
+- 工具执行时可以访问和修改上下文
+- `setAppState` 支持函数式更新
+
+---
+
+### 9.10 消息规范化 (normalizeMessagesForAPI)
+
+**utils/messages.ts**：
+
+```typescript
+export function normalizeMessagesForAPI(messages: Message[]): Message[] {
+  // 1. 移除签名块
+  // 2. 过滤重复附件
+  // 3. 转换格式
+  // 4. 返回标准化的消息数组
+}
+```
+
+**借鉴意义**：
+- 消息在发送到 API 前统一规范化
+- 分离 Concerns：构建消息 vs 发送消息
+- 方便后续添加新的消息类型
+
+---
+
+## 10. 总结
+
+Claude Code 是一个设计精良的 CLI 应用，核心设计经验：
+
+| 经验 | 说明 | 可借鉴场景 |
+|------|------|-----------|
+| **快速路径优化** | 零导入快速命令 | CLI 工具、性能敏感场景 |
+| **极简 Store** | 30 行响应式实现 | 中小型应用状态管理 |
+| **Feature Flag + DCE** | 编译时消除废弃代码 | 多环境、多租户 |
+| **工具插件化** | 统一接口 + 工厂函数 | 工具系统、扩展机制 |
+| **Hook 注入权限** | 权限逻辑可替换 | 安全敏感系统 |
+| **AsyncGenerator 流式** | 增量处理 + 中间状态 | 流式 API、长任务 |
+| **Coordinator 模式** | 多 Agent 编排 | 复杂任务分解 |
+| **依赖注入** | 核心逻辑与实现分离 | 可测试性 |
+| **上下文对象传递** | 避免参数爆炸 | 工具系统、插件系统 |
+
+**核心原则**：
+1. **性能优先**：快速路径、延迟加载、DCE
+2. **简洁**：用最少的代码解决问题（30 行 Store vs 100 行 Redux）
+3. **可扩展**：插件化、Hook 注入、Feature Flag
+4. **可测试**：依赖注入、函数式更新、模块化
